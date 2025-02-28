@@ -1,0 +1,61 @@
+[
+  {
+    "name": "Free",
+    "price": "0",
+    "currency": "INR",
+    "billingCycle": "per month",
+    "description": "Get started with essential website building tools.",
+    "features": [
+      "Basic website builder",
+      "5 pages",
+      "Limited templates",
+      "Community support",
+      "Basic analytics"
+    ],
+    "cta": {
+      "text": "Get Started",
+      "link": "/signup"
+    },
+    "highlighted": false
+  },
+  {
+    "name": "Pro",
+    "price": "1000",
+    "currency": "INR",
+    "billingCycle": "per month",
+    "description": "Advanced features for growing websites.",
+    "features": [
+      "Drag & drop builder",
+      "Unlimited pages",
+      "Premium templates",
+      "Custom domain support",
+      "SEO & marketing tools",
+      "24/7 support"
+    ],
+    "cta": {
+      "text": "Upgrade to Pro",
+      "link": "/signup?plan=pro"
+    },
+    "highlighted": true
+  },
+  {
+    "name": "Enterprise",
+    "price": "500",
+    "currency": "INR",
+    "billingCycle": "per month",
+    "description": "Full-scale customization and enterprise solutions.",
+    "features": [
+      "All Pro features",
+      "Team collaboration",
+      "Priority customer support",
+      "Advanced analytics",
+      "E-commerce capabilities",
+      "API & integrations"
+    ],
+    "cta": {
+      "text": "Contact Sales",
+      "link": "/contact"
+    },
+    "highlighted": false
+  }
+]
