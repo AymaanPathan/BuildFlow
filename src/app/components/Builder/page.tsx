@@ -15,7 +15,7 @@ function Builder() {
     parentPath: string[];
   }>({ element: null, parentPath: [] });
 
-  const generateId = Date.now().toString(12);
+  const generateId = Date.now().toString(36);
 
   const handleDragStart = (
     e: React.DragEvent<HTMLDivElement>,
@@ -44,46 +44,17 @@ function Builder() {
     e.currentTarget.classList.remove("bg-gray-700/50");
   };
 
-  const handleDrop = (
-    e: React.DragEvent<HTMLDivElement>,
-    parentId: string | null = null
-  ) => {
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
-    const draggingData = e.dataTransfer.getData("text");
-    const draggedElement = JSON.parse(draggingData) as ElementType;
-
-    if (!draggedElement) return;
-
-    setElements((prevElements) => {
-      const newElements = [...prevElements];
-
-      const addElementToParent = (
-        parentId: string | null,
-        newElement: ElementType
-      ) => {
-        if (!parentId) {
-          // If no parent, add to root
-          newElements.push(newElement);
-        } else {
-          // Find parent and insert into children
-          const insertIntoContainer = (items: ElementType[]): boolean => {
-            for (const item of items) {
-              if (item.id === parentId) {
-                item.children.push(newElement);
-                return true;
-              }
-              if (insertIntoContainer(item.children)) return true;
-            }
-            return false;
-          };
-          insertIntoContainer(newElements);
-        }
-      };
-
-      addElementToParent(parentId, draggedElement);
-      return newElements;
-    });
+    if (draggableItems.element) {
+      setElements([...elements, draggableItems.element]);
+      setDraggableItems({ element: null, parentPath: [] });
+    }
   };
+
+  // Add Element To Container [ adds a new element inside a container]
+  //  handleContainerDrop  [droping element inside a container]
+  //  render Element [Recursive function to render elements and their children]
 
   return (
     <div className="min-h-screen bg-gray-900 text-gray-100">

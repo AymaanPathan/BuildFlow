@@ -5,7 +5,6 @@ import Link from "next/link";
 import React, { useEffect, useState } from "react";
 import { X, Menu } from "lucide-react";
 import { cn } from "@/lib/utils";
-import logo from "../Assets/logo.svg";
 function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
   const { isSignedIn } = useUser();
@@ -88,7 +87,6 @@ function Navbar() {
           </button>
         </div>
       </div>
-      {/* Mobile Menu */}
       <div
         className={cn(
           "md:hidden fixed inset-0 bg-black/90 backdrop-blur-xl transition-all duration-300",
