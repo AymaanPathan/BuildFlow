@@ -10,12 +10,19 @@ interface ElementType {
 function Builder() {
   const [items] = React.useState(["Text", "Container", "Heading"]);
   const [elements, setElements] = React.useState<ElementType[]>([]);
+
   const [draggableItems, setDraggableItems] = React.useState<{
     element: ElementType | null;
     parentPath: string[];
   }>({ element: null, parentPath: [] });
+  const [hoveredElement, setHoveredElement] = React.useState<{
+    name: string;
+    x: number;
+    y: number;
+  } | null>(null);
 
-  const generateId = Date.now().toString(36);
+  const generateId = () =>
+    Date.now().toString(36) + Math.random().toString(36).substring(2);
 
   const handleDragStart = (
     e: React.DragEvent<HTMLDivElement>,
@@ -23,7 +30,7 @@ function Builder() {
     parentPath: string[] = []
   ) => {
     const element: ElementType = {
-      id: generateId,
+      id: generateId(),
       name: content,
       children: [],
     };
@@ -53,8 +60,81 @@ function Builder() {
   };
 
   // Add Element To Container [ adds a new element inside a container]
+  const hanldeAddElementToContainer = (
+    elements: ElementType[],
+    containerId: string,
+    newElement: ElementType
+  ): ElementType[] => {
+    return elements.map((element: ElementType) => {
+      if (element.id === containerId) {
+        return { ...element, children: [...element.children, newElement] };
+      } else if (element.children) {
+        return {
+          ...element,
+          children: hanldeAddElementToContainer(
+            element.children,
+            containerId,
+            newElement
+          ),
+        };
+      }
+      return element;
+    });
+  };
+  console.log(hoveredElement);
   //  handleContainerDrop  [droping element inside a container]
-  //  render Element [Recursive function to render elements and their children]
+  const handleDropInContainer = (
+    e: React.DragEvent<HTMLDivElement>,
+    containerId: string
+  ) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (draggableItems.element) {
+      setElements((prevElement) =>
+        hanldeAddElementToContainer(
+          prevElement,
+          containerId,
+          draggableItems.element!
+        )
+      );
+    }
+    setDraggableItems({ element: null, parentPath: [] });
+  };
+  //  render Element [Recursive function to render elements and their children]\
+
+  const renderElement = (element: ElementType) => {
+    const isContainer = element.name === "Container";
+    return (
+      <div
+        key={element.id}
+        onMouseEnter={(e) => {
+          setHoveredElement({
+            name: element.name,
+            x: e.clientX,
+            y: e.clientY,
+          });
+        }}
+        onMouseLeave={() => setHoveredElement(null)}
+        onDragOver={isContainer ? handleDragOver : undefined}
+        onDragLeave={isContainer ? handleDragLeave : undefined}
+        onDrop={
+          isContainer ? (e) => handleDropInContainer(e, element.id) : undefined
+        }
+        className={`group border p-2 mb-4 shadow-lg hover:border-indigo-200 relative ${
+          isContainer
+            ? "bg-gray-700/50 h-auto p-6 border-2 border-gray-500"
+            : ""
+        }`}
+      >
+        <span>{element.name !== "Container" && element.name}</span>
+        {element.children.length > 0 && (
+          <div className="ml-4 mt-2">
+            {element.children.map((child) => renderElement(child))}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className="min-h-screen bg-gray-900 text-gray-100">
@@ -68,7 +148,6 @@ function Builder() {
                 key={index}
                 draggable
                 onDragStart={(e) => handleDragStart(e, data)}
-                // onDragEnd={handleDragEnd}
                 className="cursor-move rounded-lg border-2 border-gray-700 bg-gray-700/50 p-3 transition-all hover:border-indigo-500 hover:bg-gray-700/80 active:scale-95"
               >
                 <span className="text-gray-300">{data}</span>
@@ -77,47 +156,28 @@ function Builder() {
           </div>
         </div>
 
-        {/* Main Canvas */}
         <div
           onDragEnd={handleDragEnd}
           onDragOver={handleDragOver}
           onDrop={(e) => handleDrop(e)}
           onDragLeave={handleDragLeave}
-          className="flex-1 rounded-xl border-2 border-dashed border-gray-700 bg-gray-800/50 p-6 transition-colors"
+          className="flex-1 rounded-xl border-2 border-dashed border-gray-700 bg-gray-800/50 p-6 transition-colors relative"
         >
           <h3 className="mb-6 text-lg font-semibold text-indigo-400">Canvas</h3>
-          {elements.map((element, index) => {
-            const isContainer = element.name === "Container";
+          {elements.map((element) => renderElement(element))}
 
-            return (
-              <div
-                key={index}
-                className={`group border p-2 mb-4 shadow-lg ${
-                  isContainer
-                    ? "mb-4 bg-gray-700/50 h-24 p-6 border-2 border-gray-500"
-                    : ""
-                } hover:border-indigo-200 relative`}
-              >
-                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block pointer-events-none z-50">
-                  <div className="relative">
-                    <div className="bg-gray-800 text-gray-100 text-xs font-medium px-3 py-2 rounded-lg shadow-xl flex items-center space-x-2 transform transition-all delay-150 duration-300 opacity-0 group-hover:opacity-100">
-                      <span>
-                        {isContainer ? "Container" : `${element.name}`}
-                      </span>
-                      <span className="text-indigo-400">•</span>
-                      <span className="text-gray-400">
-                        {isContainer
-                          ? "Accepts nested elements"
-                          : "Drag to reposition"}
-                      </span>
-                    </div>
-                    <div className="absolute top-full left-1/2 -translate-x-1/2 w-2 h-2 bg-gray-800 transform rotate-45 -mt-1"></div>
-                  </div>
-                </div>
-                <span>{element.name}</span>
-              </div>
-            );
-          })}
+          {/* Modern Tooltip */}
+          {hoveredElement && !draggableItems.element && (
+            <div
+              className="fixed z-50 min-w-[100px] rounded-lg bg-gray-800 px-3 py-2 text-sm text-white shadow-lg transition-opacity duration-200 border border-gray-600 backdrop-blur-sm"
+              style={{
+                left: `${hoveredElement.x + 15}px`,
+                top: `${hoveredElement.y + 15}px`,
+              }}
+            >
+              <div className="relative">{hoveredElement.name}</div>
+            </div>
+          )}
         </div>
       </div>
     </div>
