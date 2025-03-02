@@ -1,15 +1,29 @@
 "use client";
-import React from "react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { GripVertical } from "lucide-react";
+
+import React, { useState } from "react";
 
 interface ElementType {
   id: string;
   name: string;
+  style?: React.CSSProperties;
   children: ElementType[];
 }
 
 function Builder() {
   const [items] = React.useState(["Text", "Container", "Heading"]);
   const [elements, setElements] = React.useState<ElementType[]>([]);
+  const [height, setHeight] = useState("200");
 
   const [draggableItems, setDraggableItems] = React.useState<{
     element: ElementType | null;
@@ -25,7 +39,7 @@ function Builder() {
     Date.now().toString(36) + Math.random().toString(36).substring(2);
 
   const handleDragStart = (
-    e: React.DragEvent<HTMLDivElement>,
+    e: React.DragEvent<HTMLElement>,
     content: string,
     parentPath: string[] = []
   ) => {
@@ -58,6 +72,17 @@ function Builder() {
       setDraggableItems({ element: null, parentPath: [] });
     }
   };
+  // Change Height
+  const handleChangeHeight = (elementId: string, height: number) => {
+    setElements((element) =>
+      element.map((el) => {
+        if (el.id === elementId) {
+          return { ...el, style: { ...el.style, height } };
+        }
+        return el;
+      })
+    );
+  };
 
   // Add Element To Container [ adds a new element inside a container]
   const hanldeAddElementToContainer = (
@@ -81,7 +106,6 @@ function Builder() {
       return element;
     });
   };
-  console.log(hoveredElement);
   //  handleContainerDrop  [droping element inside a container]
   const handleDropInContainer = (
     e: React.DragEvent<HTMLDivElement>,
@@ -108,10 +132,11 @@ function Builder() {
       <div
         key={element.id}
         onMouseEnter={(e) => {
+          const rect = e.currentTarget.getBoundingClientRect();
           setHoveredElement({
             name: element.name,
-            x: e.clientX,
-            y: e.clientY,
+            x: rect.left + rect.width / 2,
+            y: rect.top - 8,
           });
         }}
         onMouseLeave={() => setHoveredElement(null)}
@@ -120,67 +145,119 @@ function Builder() {
         onDrop={
           isContainer ? (e) => handleDropInContainer(e, element.id) : undefined
         }
-        className={`group border p-2 mb-4 shadow-lg hover:border-indigo-200 relative ${
+        className={`group border p-2 mb-4  transition-all hover:border-indigo-400 relative ${
           isContainer
-            ? "bg-gray-700/50 h-auto p-6 border-2 border-gray-500"
-            : ""
+            ? `bg-gray-800/80 hover:bg-gray-800 border-2 border-gray-600 min-h-20`
+            : "bg-gray-900 border-gray-700 hover:bg-gray-800"
         }`}
       >
-        <span>{element.name !== "Container" && element.name}</span>
+        <span className="text-gray-300">
+          {element.name !== "Container" && element.name}
+        </span>
         {element.children.length > 0 && (
-          <div className="ml-4 mt-2">
+          <div className="ml-4 mt-2 space-y-2">
             {element.children.map((child) => renderElement(child))}
           </div>
         )}
+
+        <Tooltip>
+          <TooltipTrigger className="absolute -top-3 -left-1.5">
+            <span className="w-2 h-2 bg-indigo-500 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" />
+          </TooltipTrigger>
+          <TooltipContent
+            side="top"
+            className="bg-gray-800 border-gray-700 text-gray-200 rounded-md px-2 py-1 text-sm shadow-lg transition-opacity duration-150"
+          >
+            {element.name}
+          </TooltipContent>
+        </Tooltip>
       </div>
     );
   };
 
   return (
-    <div className="min-h-screen bg-gray-900 text-gray-100">
-      <div className="flex h-screen gap-4 p-4">
-        {/* Left Sidebar */}
-        <div className="flex w-72 flex-col gap-4 rounded-xl bg-gray-800 p-4 shadow-xl">
-          <h2 className="text-xl font-bold text-indigo-400">Components</h2>
-          <div className="flex flex-col gap-3">
-            {items.map((data, index) => (
-              <div
-                key={index}
-                draggable
-                onDragStart={(e) => handleDragStart(e, data)}
-                className="cursor-move rounded-lg border-2 border-gray-700 bg-gray-700/50 p-3 transition-all hover:border-indigo-500 hover:bg-gray-700/80 active:scale-95"
-              >
-                <span className="text-gray-300">{data}</span>
+    <TooltipProvider delayDuration={200}>
+      <div className="min-h-screen bg-gray-950">
+        <div className="flex h-screen gap-4 p-4">
+          {/* Left Sidebar */}
+          <Card className="w-72 bg-gray-900 border-gray-800">
+            <CardHeader>
+              <CardTitle className="text-gray-200">Components</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {items.map((data, index) => (
+                <Button
+                  key={index}
+                  draggable
+                  onDragStart={(e) => handleDragStart(e, data)}
+                  className="h-12 w-full cursor-grab justify-start gap-2 border border-gray-700 bg-gray-800 text-gray-300 hover:bg-gray-700 hover:text-white active:cursor-grabbing"
+                >
+                  <GripVertical className="h-4 w-4 text-gray-400" />
+                  {data}
+                </Button>
+              ))}
+            </CardContent>
+          </Card>
+
+          {/* Main Canvas */}
+          <Card
+            onDragEnd={handleDragEnd}
+            onDragOver={handleDragOver}
+            onDrop={(e) => handleDrop(e)}
+            onDragLeave={handleDragLeave}
+            className="flex-1  bg-gray-900 border-2 border-dashed border-gray-800"
+          >
+            <CardHeader>
+              <CardTitle className="text-gray-200">Canvas</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {elements.map((element) => renderElement(element))}
+            </CardContent>
+          </Card>
+
+          {/* Properties Panel */}
+          <Card className="w-72 bg-gray-900 border-gray-800">
+            <CardHeader>
+              <CardTitle className="text-gray-200">Properties</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label className="text-gray-300" htmlFor="heightControl">
+                    Height
+                  </Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      id="heightControl"
+                      type="number"
+                      min="0"
+                      value={height}
+                      onChange={(e) => setHeight(e.target.value)}
+                      className="bg-gray-800 border-gray-700 text-gray-300 focus:border-indigo-500"
+                    />
+                    <span className="text-sm text-gray-400">px</span>
+                  </div>
+                </div>
               </div>
-            ))}
-          </div>
-        </div>
-
-        <div
-          onDragEnd={handleDragEnd}
-          onDragOver={handleDragOver}
-          onDrop={(e) => handleDrop(e)}
-          onDragLeave={handleDragLeave}
-          className="flex-1 rounded-xl border-2 border-dashed border-gray-700 bg-gray-800/50 p-6 transition-colors relative"
-        >
-          <h3 className="mb-6 text-lg font-semibold text-indigo-400">Canvas</h3>
-          {elements.map((element) => renderElement(element))}
-
-          {/* Modern Tooltip */}
-          {hoveredElement && !draggableItems.element && (
-            <div
-              className="fixed z-50 min-w-[100px] rounded-lg bg-gray-800 px-3 py-2 text-sm text-white shadow-lg transition-opacity duration-200 border border-gray-600 backdrop-blur-sm"
-              style={{
-                left: `${hoveredElement.x + 15}px`,
-                top: `${hoveredElement.y + 15}px`,
-              }}
-            >
-              <div className="relative">{hoveredElement.name}</div>
-            </div>
-          )}
+            </CardContent>
+          </Card>
         </div>
       </div>
-    </div>
+      {/* <Tooltip open={!!hoveredElement && !draggableItems.element}>
+        <TooltipTrigger className="hidden " />
+        <TooltipContent
+          className="bg-yellow-200 p-0 absolute   rounded-none text-center"
+          side="right"
+          style={{
+            position: "fixed",
+            left: hoveredElement?.x,
+            top: hoveredElement?.y,
+          }}
+        >
+          <p>{hoveredElement?.name}</p>
+        </TooltipContent>
+      </Tooltip> */}
+    </TooltipProvider>
   );
 }
 
