@@ -15,6 +15,7 @@ import React, { useState } from "react";
 interface ElementType {
   id: string;
   name: string;
+  content?: string;
   style?: React.CSSProperties;
   children: ElementType[];
 }
@@ -50,8 +51,34 @@ function Builder() {
       name: content,
       children: [],
     };
+    if (content === "Text" || content === "Heading") {
+      element.content = content === "Text" ? "Your Text Here" : "New Heading";
+    }
     setDraggableItems({ element: element, parentPath });
     e.dataTransfer?.setData("text", JSON.stringify(element));
+  };
+
+  const updateElementContent = (
+    elements: ElementType[],
+    elementId: string,
+    newContent: string
+  ): ElementType[] => {
+    return elements.map((element) => {
+      if (element.id === elementId) {
+        return { ...element, content: newContent };
+      }
+      if (element.children.length > 0) {
+        return {
+          ...element,
+          children: updateElementContent(
+            element.children,
+            elementId,
+            newContent
+          ),
+        };
+      }
+      return element;
+    });
   };
 
   const handleDragEnd = (e: React.DragEvent) => {
@@ -105,7 +132,6 @@ function Builder() {
     });
   };
 
-  // When user updates the height in the properties panel
   const handleHeightChange = (newHeight: number) => {
     if (!selectedElementId) return;
     setElements((prevElements) =>
@@ -162,6 +188,8 @@ function Builder() {
 
   const renderElement = (element: ElementType) => {
     const isContainer = element.name === "Container";
+    const isTextElement = element.name === "Text" || element.name === "Heading";
+
     return (
       <div
         key={element.id}
@@ -187,16 +215,36 @@ function Builder() {
           ${selectedElementId === element.id ? "border-yellow-500" : ""}
           ${
             isContainer
-              ? "bg-gray-800/80 hover:bg-gray-800 border-2 border-gray-600 "
+              ? "bg-gray-800/80 hover:bg-gray-800 border-2 h-28 border-gray-600 "
               : "bg-gray-900 border-gray-700 hover:bg-gray-800"
           }`}
         style={element.style}
       >
-        <span className="text-gray-300">
-          {element.name !== "Container" && element.name}
-        </span>
+        {isTextElement && (
+          <div className="w-full">
+            {selectedElementId === element.id ? (
+              <input
+                type="text"
+                value={element.content || ""}
+                onChange={(e) => {
+                  setElements((prev) =>
+                    updateElementContent(prev, element.id, e.target.value)
+                  );
+                }}
+                className="w-full bg-transparent text-white outline-none"
+                autoFocus
+                onBlur={() => setSelectedElementId(null)}
+                onClick={(e) => e.stopPropagation()}
+              />
+            ) : (
+              <span className="text-gray-300">
+                {element.content || element.name}
+              </span>
+            )}
+          </div>
+        )}
         {element.children.length > 0 && (
-          <div className="ml-4 mt-2 space-y-2">
+          <div className="">
             {element.children.map((child) => renderElement(child))}
           </div>
         )}
@@ -280,7 +328,6 @@ function Builder() {
                         }}
                         className="bg-gray-800 border-gray-700 text-gray-300 focus:border-indigo-500"
                       />
-                      <span className="text-sm text-gray-400">px</span>
                     </div>
                   </div>
                 ) : (
