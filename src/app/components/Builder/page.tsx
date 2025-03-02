@@ -10,7 +10,6 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { GripVertical } from "lucide-react";
-
 import React, { useState } from "react";
 
 interface ElementType {
@@ -23,13 +22,16 @@ interface ElementType {
 function Builder() {
   const [items] = React.useState(["Text", "Container", "Heading"]);
   const [elements, setElements] = React.useState<ElementType[]>([]);
-  const [height, setHeight] = useState("200");
+  const [height, setHeight] = useState<number | null>(null);
+  const [selectedElementId, setSelectedElementId] = useState<string | null>(
+    null
+  );
 
   const [draggableItems, setDraggableItems] = React.useState<{
     element: ElementType | null;
     parentPath: string[];
   }>({ element: null, parentPath: [] });
-  const [hoveredElement, setHoveredElement] = React.useState<{
+  const [hoveredElement, setHoveredElement] = useState<{
     name: string;
     x: number;
     y: number;
@@ -49,7 +51,7 @@ function Builder() {
       children: [],
     };
     setDraggableItems({ element: element, parentPath });
-    e?.dataTransfer?.setData("text", JSON.stringify(element));
+    e.dataTransfer?.setData("text", JSON.stringify(element));
   };
 
   const handleDragEnd = (e: React.DragEvent) => {
@@ -72,41 +74,74 @@ function Builder() {
       setDraggableItems({ element: null, parentPath: [] });
     }
   };
-  // Change Height
-  const handleChangeHeight = (elementId: string, height: number) => {
-    setElements((element) =>
-      element.map((el) => {
-        if (el.id === elementId) {
-          return { ...el, style: { ...el.style, height } };
+  // Recursively update the style for the element with the given id.
+  const updateElementStyleRecursively = (
+    elems: ElementType[],
+    elementId: string,
+    styleName: keyof React.CSSProperties,
+    styleVal: string | number
+  ): ElementType[] => {
+    return elems.map((el) => {
+      if (el.id === elementId) {
+        let newStyleVal = styleVal;
+        if (styleName === "height") {
+          newStyleVal =
+            typeof styleVal === "number" ? `${styleVal}px` : styleVal;
         }
-        return el;
-      })
+        return { ...el, style: { ...el.style, [styleName]: newStyleVal } };
+      }
+      if (el.children && el.children.length > 0) {
+        return {
+          ...el,
+          children: updateElementStyleRecursively(
+            el.children,
+            elementId,
+            styleName,
+            styleVal
+          ),
+        };
+      }
+      return el;
+    });
+  };
+
+  // When user updates the height in the properties panel
+  const handleHeightChange = (newHeight: number) => {
+    if (!selectedElementId) return;
+    setElements((prevElements) =>
+      updateElementStyleRecursively(
+        prevElements,
+        selectedElementId,
+        "height",
+        newHeight
+      )
     );
   };
 
-  // Add Element To Container [ adds a new element inside a container]
-  const hanldeAddElementToContainer = (
-    elements: ElementType[],
+  // Add Element To Container [adds a new element inside a container]
+  const handleAddElementToContainer = (
+    elems: ElementType[],
     containerId: string,
     newElement: ElementType
   ): ElementType[] => {
-    return elements.map((element: ElementType) => {
-      if (element.id === containerId) {
-        return { ...element, children: [...element.children, newElement] };
-      } else if (element.children) {
+    return elems.map((el: ElementType) => {
+      if (el.id === containerId) {
+        return { ...el, children: [...el.children, newElement] };
+      } else if (el.children) {
         return {
-          ...element,
-          children: hanldeAddElementToContainer(
-            element.children,
+          ...el,
+          children: handleAddElementToContainer(
+            el.children,
             containerId,
             newElement
           ),
         };
       }
-      return element;
+      return el;
     });
   };
-  //  handleContainerDrop  [droping element inside a container]
+
+  // handleDropInContainer [dropping element inside a container]
   const handleDropInContainer = (
     e: React.DragEvent<HTMLDivElement>,
     containerId: string
@@ -114,9 +149,9 @@ function Builder() {
     e.preventDefault();
     e.stopPropagation();
     if (draggableItems.element) {
-      setElements((prevElement) =>
-        hanldeAddElementToContainer(
-          prevElement,
+      setElements((prevElements) =>
+        handleAddElementToContainer(
+          prevElements,
           containerId,
           draggableItems.element!
         )
@@ -124,13 +159,16 @@ function Builder() {
     }
     setDraggableItems({ element: null, parentPath: [] });
   };
-  //  render Element [Recursive function to render elements and their children]\
 
   const renderElement = (element: ElementType) => {
     const isContainer = element.name === "Container";
     return (
       <div
         key={element.id}
+        onClick={(e) => {
+          e.stopPropagation();
+          setSelectedElementId(element.id);
+        }}
         onMouseEnter={(e) => {
           const rect = e.currentTarget.getBoundingClientRect();
           setHoveredElement({
@@ -145,11 +183,14 @@ function Builder() {
         onDrop={
           isContainer ? (e) => handleDropInContainer(e, element.id) : undefined
         }
-        className={`group border p-2 mb-4  transition-all hover:border-indigo-400 relative ${
-          isContainer
-            ? `bg-gray-800/80 hover:bg-gray-800 border-2 border-gray-600 min-h-20`
-            : "bg-gray-900 border-gray-700 hover:bg-gray-800"
-        }`}
+        className={`group border p-2 mb-4 transition-all hover:border-indigo-400 relative 
+          ${selectedElementId === element.id ? "border-yellow-500" : ""}
+          ${
+            isContainer
+              ? "bg-gray-800/80 hover:bg-gray-800 border-2 border-gray-600 "
+              : "bg-gray-900 border-gray-700 hover:bg-gray-800"
+          }`}
+        style={element.style}
       >
         <span className="text-gray-300">
           {element.name !== "Container" && element.name}
@@ -159,7 +200,6 @@ function Builder() {
             {element.children.map((child) => renderElement(child))}
           </div>
         )}
-
         <Tooltip>
           <TooltipTrigger className="absolute -top-3 -left-1.5">
             <span className="w-2 h-2 bg-indigo-500 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -205,7 +245,7 @@ function Builder() {
             onDragOver={handleDragOver}
             onDrop={(e) => handleDrop(e)}
             onDragLeave={handleDragLeave}
-            className="flex-1  bg-gray-900 border-2 border-dashed border-gray-800"
+            className="flex-1 bg-gray-900 border-2 border-dashed border-gray-800"
           >
             <CardHeader>
               <CardTitle className="text-gray-200">Canvas</CardTitle>
@@ -222,41 +262,37 @@ function Builder() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label className="text-gray-300" htmlFor="heightControl">
-                    Height
-                  </Label>
-                  <div className="flex items-center gap-2">
-                    <Input
-                      id="heightControl"
-                      type="number"
-                      min="0"
-                      value={height}
-                      onChange={(e) => setHeight(e.target.value)}
-                      className="bg-gray-800 border-gray-700 text-gray-300 focus:border-indigo-500"
-                    />
-                    <span className="text-sm text-gray-400">px</span>
+                {selectedElementId ? (
+                  <div className="space-y-2">
+                    <Label className="text-gray-300" htmlFor="heightControl">
+                      Height
+                    </Label>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        id="heightControl"
+                        type="number"
+                        min="0"
+                        value={height ?? ""}
+                        onChange={(e) => {
+                          const newHeight = Number(e.target.value);
+                          setHeight(newHeight);
+                          handleHeightChange(newHeight);
+                        }}
+                        className="bg-gray-800 border-gray-700 text-gray-300 focus:border-indigo-500"
+                      />
+                      <span className="text-sm text-gray-400">px</span>
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  <p className="text-gray-400">
+                    Select an element to edit its properties
+                  </p>
+                )}
               </div>
             </CardContent>
           </Card>
         </div>
       </div>
-      {/* <Tooltip open={!!hoveredElement && !draggableItems.element}>
-        <TooltipTrigger className="hidden " />
-        <TooltipContent
-          className="bg-yellow-200 p-0 absolute   rounded-none text-center"
-          side="right"
-          style={{
-            position: "fixed",
-            left: hoveredElement?.x,
-            top: hoveredElement?.y,
-          }}
-        >
-          <p>{hoveredElement?.name}</p>
-        </TooltipContent>
-      </Tooltip> */}
     </TooltipProvider>
   );
 }
