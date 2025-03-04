@@ -1,16 +1,16 @@
 "use client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { GripVertical } from "lucide-react";
+import { Eye } from "lucide-react";
 import React, { useState } from "react";
+import ElementProperty from "./ElementProperty";
 
 interface ElementType {
   id: string;
@@ -18,17 +18,47 @@ interface ElementType {
   content?: string;
   style?: React.CSSProperties;
   children: ElementType[];
+  // Optional custom property to store the user-defined height
+  customHeight?: string;
 }
 
 function Builder() {
-  const [items] = React.useState(["Text", "Container", "Heading"]);
-  const [elements, setElements] = React.useState<ElementType[]>([]);
+  const [isPreviewing, setIsPreviewing] = useState(false);
+
+  const renderPreviewElement = (element: ElementType) => {
+    const isContainer = element.name === "Container";
+    const isTextElement = element.name === "Text" || element.name === "Heading";
+
+    return (
+      <div
+        key={element.id}
+        style={element.style}
+        className={`${isContainer ? "min-h-[7rem]" : ""} mb-4`}
+      >
+        {isTextElement && (
+          <div className="w-full">
+            <span className="text-gray-800">{element.content}</span>
+          </div>
+        )}
+        {element.children.length > 0 && (
+          <div>
+            {element.children.map((child) => renderPreviewElement(child))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const [items] = useState(["Text", "Container", "Heading"]);
+  const [elements, setElements] = useState<ElementType[]>([]);
   const [height, setHeight] = useState<number | null>(null);
   const [selectedElementId, setSelectedElementId] = useState<string | null>(
     null
   );
+  // State for the "Fit Content" checkbox (applies to Container elements)
+  const [containerFit, setContainerFit] = useState(false);
 
-  const [draggableItems, setDraggableItems] = React.useState<{
+  const [draggableItems, setDraggableItems] = useState<{
     element: ElementType | null;
     parentPath: string[];
   }>({ element: null, parentPath: [] });
@@ -101,6 +131,7 @@ function Builder() {
       setDraggableItems({ element: null, parentPath: [] });
     }
   };
+
   // Recursively update the style for the element with the given id.
   const updateElementStyleRecursively = (
     elems: ElementType[],
@@ -111,9 +142,8 @@ function Builder() {
     return elems.map((el) => {
       if (el.id === elementId) {
         let newStyleVal = styleVal;
-        if (styleName === "height") {
-          newStyleVal =
-            typeof styleVal === "number" ? `${styleVal}px` : styleVal;
+        if (styleName === "height" && typeof styleVal === "number") {
+          newStyleVal = `${styleVal}px`;
         }
         return { ...el, style: { ...el.style, [styleName]: newStyleVal } };
       }
@@ -125,6 +155,57 @@ function Builder() {
             elementId,
             styleName,
             styleVal
+          ),
+        };
+      }
+      return el;
+    });
+  };
+
+  // Update container (and its children) with "fit-content" style.
+  // When unchecking, revert to user styling if available.
+  const updateContainerFitContent = (
+    elems: ElementType[],
+    containerId: string,
+    fitContent: boolean
+  ): ElementType[] => {
+    return elems.map((el) => {
+      if (el.id === containerId && el.name === "Container") {
+        const newStyle = { ...el.style };
+        if (fitContent) {
+          // Store the current height as customHeight if not already stored
+          if (
+            !el.customHeight &&
+            newStyle.height &&
+            newStyle.height !== "fit-content"
+          ) {
+            el.customHeight = newStyle.height as string;
+          }
+          newStyle.height = "fit-content";
+        } else {
+          // Revert back to stored customHeight if available, or remove height styling
+          newStyle.height = el.customHeight || undefined;
+          delete el.customHeight;
+        }
+
+        // Update immediate children as well
+        const newChildren = el.children.map((child) => ({
+          ...child,
+          style: {
+            ...child.style,
+            height: fitContent ? "fit-content" : child.style?.height,
+          },
+        }));
+
+        return { ...el, style: newStyle, children: newChildren };
+      }
+      if (el.children && el.children.length > 0) {
+        return {
+          ...el,
+          children: updateContainerFitContent(
+            el.children,
+            containerId,
+            fitContent
           ),
         };
       }
@@ -144,7 +225,6 @@ function Builder() {
     );
   };
 
-  // Add Element To Container [adds a new element inside a container]
   const handleAddElementToContainer = (
     elems: ElementType[],
     containerId: string,
@@ -167,7 +247,7 @@ function Builder() {
     });
   };
 
-  // handleDropInContainer [dropping element inside a container]
+  // Handle dropping an element inside a container
   const handleDropInContainer = (
     e: React.DragEvent<HTMLDivElement>,
     containerId: string
@@ -196,6 +276,12 @@ function Builder() {
         onClick={(e) => {
           e.stopPropagation();
           setSelectedElementId(element.id);
+          // If a container is selected, update the checkbox state based on its style.
+          if (element.name === "Container") {
+            setContainerFit(element.style?.height === "fit-content");
+          } else {
+            setContainerFit(false);
+          }
         }}
         onMouseEnter={(e) => {
           const rect = e.currentTarget.getBoundingClientRect();
@@ -215,7 +301,7 @@ function Builder() {
           ${selectedElementId === element.id ? "border-yellow-500" : ""}
           ${
             isContainer
-              ? "bg-gray-800/80 hover:bg-gray-800 border-2 h-28 border-gray-600 "
+              ? "bg-gray-800/80 hover:bg-gray-800 border-2 min-h-28 border-gray-600 "
               : "bg-gray-900 border-gray-700 hover:bg-gray-800"
           }`}
         style={element.style}
@@ -233,7 +319,7 @@ function Builder() {
                 }}
                 className="w-full bg-transparent text-white outline-none"
                 autoFocus
-                onBlur={() => setSelectedElementId(null)}
+                // Optionally, adjust onBlur if needed
                 onClick={(e) => e.stopPropagation()}
               />
             ) : (
@@ -244,9 +330,7 @@ function Builder() {
           </div>
         )}
         {element.children.length > 0 && (
-          <div className="">
-            {element.children.map((child) => renderElement(child))}
-          </div>
+          <div>{element.children.map((child) => renderElement(child))}</div>
         )}
         <Tooltip>
           <TooltipTrigger className="absolute -top-3 -left-1.5">
@@ -263,82 +347,82 @@ function Builder() {
     );
   };
 
+  // Determine if the currently selected element is a container
+  const selectedElementIsContainer = React.useMemo(() => {
+    if (!selectedElementId) return false;
+    const findElement = (elems: ElementType[]): ElementType | null => {
+      for (const el of elems) {
+        if (el.id === selectedElementId) return el;
+        if (el.children.length > 0) {
+          const found = findElement(el.children);
+          if (found) return found;
+        }
+      }
+      return null;
+    };
+    const selectedEl = findElement(elements);
+    return selectedEl?.name === "Container";
+  }, [selectedElementId, elements]);
+
   return (
     <TooltipProvider delayDuration={200}>
       <div className="min-h-screen bg-gray-950">
         <div className="flex h-screen gap-4 p-4">
-          {/* Left Sidebar */}
-          <Card className="w-72 bg-gray-900 border-gray-800">
-            <CardHeader>
-              <CardTitle className="text-gray-200">Components</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {items.map((data, index) => (
-                <Button
-                  key={index}
-                  draggable
-                  onDragStart={(e) => handleDragStart(e, data)}
-                  className="h-12 w-full cursor-grab justify-start gap-2 border border-gray-700 bg-gray-800 text-gray-300 hover:bg-gray-700 hover:text-white active:cursor-grabbing"
-                >
-                  <GripVertical className="h-4 w-4 text-gray-400" />
-                  {data}
-                </Button>
-              ))}
-            </CardContent>
-          </Card>
-
           {/* Main Canvas */}
           <Card
             onDragEnd={handleDragEnd}
             onDragOver={handleDragOver}
             onDrop={(e) => handleDrop(e)}
             onDragLeave={handleDragLeave}
-            className="flex-1 bg-gray-900 border-2 border-dashed border-gray-800"
+            className="flex-1 relative bg-gray-900 border-2 border-dashed border-gray-800 min-w-0"
           >
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle className="text-gray-200">Canvas</CardTitle>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsPreviewing(true)}
+                className="text-gray-400 hover:text-gray-100"
+              >
+                <Eye className="h-4 w-4 mr-2" />
+                Preview
+              </Button>
             </CardHeader>
             <CardContent className="space-y-4">
               {elements.map((element) => renderElement(element))}
             </CardContent>
           </Card>
-
-          {/* Properties Panel */}
-          <Card className="w-72 bg-gray-900 border-gray-800">
-            <CardHeader>
-              <CardTitle className="text-gray-200">Properties</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {selectedElementId ? (
-                  <div className="space-y-2">
-                    <Label className="text-gray-300" htmlFor="heightControl">
-                      Height
-                    </Label>
-                    <div className="flex items-center gap-2">
-                      <Input
-                        id="heightControl"
-                        type="number"
-                        min="0"
-                        value={height ?? ""}
-                        onChange={(e) => {
-                          const newHeight = Number(e.target.value);
-                          setHeight(newHeight);
-                          handleHeightChange(newHeight);
-                        }}
-                        className="bg-gray-800 border-gray-700 text-gray-300 focus:border-indigo-500"
-                      />
-                    </div>
-                  </div>
-                ) : (
-                  <p className="text-gray-400">
-                    Select an element to edit its properties
-                  </p>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+          {/* Right Sidebar */}
+          <ElementProperty
+            onDragStart={handleDragStart}
+            items={items}
+            handleDragStart={handleDragStart}
+            selectedElementId={selectedElementId}
+            selectedElementIsContainer={selectedElementIsContainer}
+            containerFit={containerFit}
+            setContainerFit={setContainerFit}
+            setElements={setElements}
+            updateContainerFitContent={updateContainerFitContent}
+            height={height}
+            setHeight={setHeight}
+          />
         </div>
+        {isPreviewing && (
+          <div className="fixed inset-0 z-50 bg-white">
+            <div className="relative w-full h-full overflow-auto">
+              <Button
+                onClick={() => setIsPreviewing(false)}
+                className="absolute top-4 right-4 z-50"
+                variant="outline"
+              >
+                Close Preview
+              </Button>
+              <div className="p-4 mx-auto max-w-4xl">
+                {elements.map((element) => renderPreviewElement(element))}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </TooltipProvider>
   );
